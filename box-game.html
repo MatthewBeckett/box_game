@@ -1,0 +1,951 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="css/box-game.css" >
+
+    <title>Box Game</title>
+
+  </head>
+
+  <body>
+  <div>
+    <script>
+
+var 	w 	= window,
+	d 	= document,
+	e 	= d.documentElement,
+	g 	= d.getElementsByTagName('body')[0],
+	x 	= w.innerWidth || e.clientWidth || g.clientWidth,
+	y 	= w.innerHeight|| e.clientHeight|| g.clientHeight;
+
+var 	SCREEN_HEIGHT 	= y - 20, 
+	SCREEN_WIDTH 	= SCREEN_HEIGHT * 1.2;
+
+var 	canvas, 
+	context, 
+	keystate;
+
+var 	player,
+	lastFrameTime,
+	previousLevelStateNewest = platform,
+	previousLevelStateOldest = platform,
+	previousLevelStateHolder;
+
+var	FRAME_RATE = 1000 / 32;
+
+var	paused = false;
+
+
+var	previousLevel 	= {x:0,y:0};
+
+function init(){
+	player.x = S1+10;
+	player.y = SCREEN_HEIGHT - S2;
+}	
+
+//// KEYBOARD ASSIGNMENT ////
+var 	LEFT_ARROW 	= 37, 
+	UP_ARROW 	= 38,
+	RIGHT_ARROW 	= 39, 
+	DOWN_ARROW 	= 40,
+	F_KEY 		= 70,
+	P_KEY		= 80;
+      
+var	F_KEY_Pressed	= false,
+	P_KEY_Pressed 	= false;
+
+
+//// STANDARD SIZES ////
+var	S1 	= SCREEN_HEIGHT*0.05,
+	S2 	= SCREEN_HEIGHT*0.10,
+	S3 	= SCREEN_HEIGHT*0.15,
+	S4 	= SCREEN_HEIGHT*0.20,
+	S5 	= SCREEN_HEIGHT*0.25,
+	S6 	= SCREEN_HEIGHT*0.30,
+	S7 	= SCREEN_HEIGHT*0.35,
+	S8	= SCREEN_HEIGHT*0.40,
+	S9	= SCREEN_HEIGHT*0.45,
+	S10 	= SCREEN_HEIGHT*0.50,
+	S11 	= SCREEN_HEIGHT*0.55,
+	S12 	= SCREEN_HEIGHT*0.60,
+	S13 	= SCREEN_HEIGHT*0.65,
+	S14 	= SCREEN_HEIGHT*0.70,
+	S15 	= SCREEN_HEIGHT*0.75,
+	S16 	= SCREEN_HEIGHT*0.80,
+	S17 	= SCREEN_HEIGHT*0.85,
+	S18	= SCREEN_HEIGHT*0.90,
+	S19	= SCREEN_HEIGHT*0.95,
+	S20 	= SCREEN_HEIGHT*1.00;
+
+var level = {x:0,y:0};
+
+var collision = false;
+var cornerCollision = false;
+var x_axis_collision = false;
+var y_axis_collision = false;
+
+
+///// PLAYER ///////////////////////////////////////////////////////////////////
+player = {
+	x		:null,
+	y		:null,
+	width		:S1,
+	height		:S1,
+	velocity	:{x:0,y:1},
+	gravity		:0.8,
+	contact_bottom	:false,
+	contact_left	:false,
+	contact_right	:false,
+	contact_top	:false,
+	max_velocity	:{x:10,y:100},
+	platformvelocity:{x:0,y:0},
+	flying		:false,
+	moved		:{x:0,y:0},
+
+	  
+	update: function(){
+
+    		this.moved.x = this.x;
+    		this.moved.y = this.y;
+
+
+		this.velocity.y += this.gravity;
+		
+            	
+		//cap x velocity
+		if(this.velocity.x > this.max_velocity.x)
+		      	this.velocity.x = this.max_velocity.x;
+		if(this.velocity.x < -this.max_velocity.x)
+		      	this.velocity.x = -this.max_velocity.x;
+		
+		//cap x velocity
+		if(this.velocity.y > this.max_velocity.y)
+		      	this.velocity.y = this.max_velocity.y;
+		if(this.velocity.y < -this.max_velocity.y)
+			this.velocity.y = -this.max_velocity.y;
+
+		this.x += this.velocity.x;
+		this.y += this.velocity.y;
+
+		this.moved.x = this.x - this.moved.x;
+		this.moved.y = this.y - this.moved.y;
+
+		BoxCollision(player);
+
+		    
+		SwitchLevel();	
+    	},
+          
+	draw: function(){
+            	context.fillRect(this.x, this.y,this.width,this.height);
+  	}
+};
+
+
+function KeyboardInput(){
+//////// KEY INPUT /////////////////////////////////////////////////////////////
+
+//////// FLYING STATE ON/OFF ///////////////////////////
+	if(keystate[F_KEY] && !paused)
+	{
+		if(!F_KEY_Pressed)
+		{
+			player.F_KEY_Pressed = true;
+			if(player.flying)
+  				player.flying = false;
+			else player.flying = true;
+		}
+	}
+	else F_KEY_Pressed = false;
+
+	if(keystate[P_KEY])
+	{
+		if(!P_KEY_Pressed)
+		{
+			P_KEY_Pressed = true;
+			if(!paused)
+				paused = true;
+			else
+				paused = false;		
+		}
+	}else P_KEY_Pressed = false;
+
+//////// UP / DOWN MOVEMENT ////////////////////////////
+	if (keystate[UP_ARROW] && (player.contact_bottom || player.flying) && !paused)
+	{
+		player.contact_bottom = false;
+	      	player.y-=2;
+	      	player.velocity.y = -16;
+	}
+	if (keystate[DOWN_ARROW])
+      		if(!player.contact_bottom)player.y +=7;
+
+//////// LEFT / RIGHT MOVEMENT /////////////////////////
+    	if (keystate[LEFT_ARROW] && !paused)
+	{
+      		if(player.contact_bottom)
+        		player.velocity.x -=2;
+      		else
+        		player.velocity.x -=0.2;
+   	}
+	else if (keystate[RIGHT_ARROW] && !paused)
+	{              	
+		if(player.contact_bottom)
+        		player.velocity.x +=2;
+      		else
+        		player.velocity.x +=0.2;
+	}
+    	else
+	{ 
+		if(player.contact_bottom && !paused)
+      		{
+        		player.velocity.x *= 0.6;
+        		if(player.velocity.x < 1 && player.velocity.x > -1)
+          			player.velocity.x = 0;
+      		}
+	}
+
+};
+
+
+
+
+
+
+////////// DEBUG HUD ///////////////////////////////////////////////////////////
+      function Debug(){
+        context.fillStyle = "rgba(0,200,0,1)";
+
+        context.fillText("moved.x: "+parseInt(player.moved.x), 50,50);
+        context.fillText("moved.y: "+parseInt(player.moved.y), 50,70);
+
+        context.fillText("contact_bottom: " +player.contact_bottom, 200,50);
+        context.fillText("contact_top: "    +player.contact_top,    200,70);
+        context.fillText("contact_left: "   +player.contact_left,   200,90);
+        context.fillText("contact_right: "  +player.contact_right,  200,110);
+        context.fillText("collision: "  +collision,  200,130);
+        context.fillText("corner collision: "  +cornerCollision,  200,150);
+        context.fillText("x axis collision: "  +x_axis_collision,  200,170);
+        context.fillText("y axis collision: "  +y_axis_collision,  200,190);
+
+
+        context.fillText("level.x: " +level.x, 350,50);
+        context.fillText("level.y: " +level.y, 350,70);
+        context.fillText("previous level.x: " +previousLevel.x, 350,90);
+        context.fillText("previous level.y: " +previousLevel.y, 350,110);
+
+        context.fillText("flying: "+player.flying , SCREEN_WIDTH-150,50);
+        context.fillText("paused: "+paused  	  , SCREEN_WIDTH-150,70);
+      }
+
+
+//////////// COLLISION /////////////////////////////////////////////////////////
+function BoxCollision(player){
+        //platform collision
+   	for (var i =0; i< platform.length;i++)
+        {
+
+		if (
+		player.x 		<= platform[i].x + platform[i].width 	&&
+		player.x + player.width >= platform[i].x 			&&
+		player.y 		<= platform[i].y + platform[i].height	&&
+		player.height + player.y>= platform[i].y) 
+		{
+		    // collision detected!
+			collision = true;
+		
+
+			var y_axis_difference,x_axis_difference;
+
+			if(player.x > platform[i].x)
+				x_axis_difference = player.x - platform[i].x;
+			else
+				x_axis_difference = platform[i].x - player.x;
+		
+			if(player.y > platform[i].y)
+				y_axis_difference = player.y - platform[i].y;
+			else
+				y_axis_difference = platform[i].y - player.y;
+
+			if(x_axis_difference < y_axis_difference )
+			{
+				// x axis collision
+				x_axis_collision = true;
+				if(player.x+(player.width*0.5) > platform[i].x + (platform[i].width*0.5))
+				{
+					// player left side collision
+					player.contact_left = true;
+			    		player.x - platform[i].x+platform[i].width;
+			    		player.velocity.x = -player.velocity.x*0.3;
+			    		player.x+=2;
+
+				}
+				if(player.x+(player.width*0.5) < platform[i].x + (platform[i].width*0.5))
+				{
+					// player right side collision
+			     		player.contact_right = true;
+					player.x = platform[i].x - player.width;
+			     		player.velocity.x = -player.velocity.x * 0.3;
+			     		player.x -=2;
+
+
+				}			
+			}
+			else if(y_axis_difference < x_axis_difference)
+			{
+				// y axis collision
+				y_axis_collision = true;
+				if(player.y+(player.height*0.5) > platform[i].y + (platform[i].height*0.5))
+				{
+					// player head collision
+					player.contact_top = true;
+			    		player.y = platform[i].y + platform[i].height;
+			    		player.velocity.y = -player.velocity.y*0.3;
+
+				}
+				else if(player.y+(player.height*0.5) < platform[i].y + (platform[i].height*0.5))
+				{
+					// player foot collision
+					player.contact_bottom = true;
+					player.velocity.y = 0;
+					player.y = platform[i].y - player.height;
+					player.x += platform[i].velocity.x;
+					//player.platformvelocity.x = platform[i].velocity.x;
+					//player.platformvelocity.y = platform[i].velocity.y;
+				}
+			}
+			else
+			{
+				// corner collision
+			}
+		}
+		else{
+			contact_bottom=false;
+			collision = false;		
+		}
+      	}
+}
+
+
+
+
+
+
+function SwitchLevel(){
+	//// SWITCH LEVELS WHEN EXIT WINDOW AREA ////
+	if(player.x > SCREEN_WIDTH)
+	{
+		previousLevelStateNewest = platform;
+		level.x++;
+		HandleLevel();	
+		previousLevel.x = level.x-1;
+		previousLevel.y = level.y;
+		player.x = 0-player.width;
+	}
+	if(player.x + player.width < 0 )
+	{
+		previousLevelStateNewest = platform;
+		level.x--;
+		HandleLevel();
+		previousLevel.x = level.x+1;
+		previousLevel.y = level.y;
+		player.x = SCREEN_WIDTH;
+	}
+	if(player.y > SCREEN_HEIGHT)
+	{
+		previousLevelStateNewest = platform;
+		level.y--;
+		
+		HandleLevel();
+		previousLevel.y = level.y+1;
+		previousLevel.x = level.x;			
+		player.y = 0-player.height;
+	}
+	if(player.y + player.height < 0 )
+	{	previousLevelStateNewest = platform;
+		
+	      	level.y++;
+		
+		HandleLevel();
+		previousLevel.y = level.y-1;
+		previousLevel.x = level.x;
+		
+		player.y = SCREEN_HEIGHT;				
+	}
+
+}
+
+
+function HandleLevel()
+{
+	if(level.x == previousLevel.x && level.y == previousLevel.y)
+	{
+		platform = previousLevelStateOldest; 
+	}			
+	else
+	{
+	  	platform = Level();
+	}
+	previousLevelStateOldest = previousLevelStateNewest
+}
+
+
+
+var hasFocus = true;
+
+
+
+
+
+function main(){
+	canvas 		= document.createElement("canvas");
+        canvas.width 	= SCREEN_WIDTH;
+        canvas.height 	= SCREEN_HEIGHT;
+        context 	= canvas.getContext("2d");
+        
+	document.body.appendChild(canvas);
+
+        keystate 	= {};
+        
+	document.addEventListener("keydown", function(evt){
+          	keystate[evt.keyCode] = true;
+        });
+
+        document.addEventListener("keyup",function(evt){
+          	delete keystate[evt.keyCode];
+        });
+
+        init();
+
+
+        var loop = function(){
+		
+		
+		KeyboardInput();
+	       	
+		if(!paused){
+			update();
+			draw();
+					
+			while(performance.now() - lastFrameTime < FRAME_RATE);
+			lastFrameTime = performance.now();		
+          	
+		}        
+		
+          	window.requestAnimationFrame(loop,canvas);
+	};
+
+        window.requestAnimationFrame(loop,canvas);
+}
+
+
+
+function update(){
+		
+	player.update();
+
+	//platform update
+	for(var i=0;i<platform.length;i++)
+	{
+		if(platform[i].velocity.x != 0 || platform[i].velocity.y != 0)
+		{
+  			if(
+			platform[i].x >= platform[i].startLoc.x + platform[i].endLoc.x || 
+			platform[i].x < platform[i].startLoc.x)
+			{
+    				platform[i].velocity.x = -platform[i].velocity.x;
+			}
+  			platform[i].x += platform[i].velocity.x;
+		}
+	}
+
+}
+
+function draw(){
+	context.fillRect(0,0,SCREEN_WIDTH,SCREEN_HEIGHT);
+	context.save();
+	context.fillStyle = "rgba(0,0,200,1)";
+
+	player.draw();
+	context.fillStyle = "rgba(200,0,0,1)";
+
+	for (var i = 0 ; i < platform.length; i++)
+  		context.fillRect(platform[i].x, platform[i].y,platform[i].width,platform[i].height);
+
+	
+	Debug();
+	context.restore();
+}
+
+main();
+
+
+//////////// LEVELS ////////////////////////////////////////////////////////////
+
+/////////// TEMPLATE PLATFORM ARRAY ////////////////////////////
+var platform = 			[{	id	:1,
+					x	:0,
+					y	:0,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S20, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:2,
+					x	:SCREEN_WIDTH-S1,
+					y	:S4,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S20, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:3,
+					x	:0,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S9,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:4,	
+					x	:SCREEN_WIDTH - S9,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S9,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:5,
+					x	:SCREEN_WIDTH-S4,
+					y	:S16,
+					startLoc:{x:0,y:0},
+					width	:S3,
+					height	:S4,
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id:6,
+					x	:100,
+					y	:S7,
+					startLoc:{x:100,y:S7},
+					width	:50,
+					height	:S3,
+					velocity:{x:5,y:0},
+					endLoc	:{x:S7,y:0}
+				},
+		    		{	id	:7,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.6,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.6},
+					width	:100,
+					height	:SCREEN_HEIGHT * 0.05,
+					velocity:{x:3,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.5,y:0}
+				},
+		    		{	id	:8,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.8,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.8},
+					width	:150,
+					height	:SCREEN_HEIGHT * 0.05,
+					velocity:{x:4,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.5,y:0}
+				}];
+
+
+
+
+function Level(){
+
+	if (level.x ==-1){
+		if(level.y == 0)
+		    	return 	[{	id	:2,
+					x	:S1,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:3,
+					x	:S2,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:4,
+					x	:S3,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:5,
+					x	:S4,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:6,
+					x	:S5,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:7,
+					x	:S6,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:8,
+					x	:S7,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+				{	id	:1,
+					x	:S8,
+					y	:S19,
+					startLoc:{x:0,y:0},
+					width	:S1,
+					height	:S1, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				}];
+
+
+
+	}
+	if (level.x == 0)
+	{
+		
+	  	if(level.y == 0)
+		    	return 	[{	id	:1,
+					x	:0,
+					y	:-SCREEN_HEIGHT*0.5,
+					startLoc:{x:0,y:0},
+					width	:SCREEN_WIDTH*0.05,
+					height	:SCREEN_HEIGHT+SCREEN_HEIGHT*0.5, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:2,
+					x	:SCREEN_WIDTH-20,
+					y	:100,
+					startLoc:{x:SCREEN_WIDTH-20,y:0},
+					width	:20,
+					height	:SCREEN_HEIGHT, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:3,
+					x	:0,
+					y	:SCREEN_HEIGHT-20,
+					startLoc:{x:0,y:SCREEN_HEIGHT-20},
+					width	:SCREEN_WIDTH*.08,
+					height	:20, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:4,	
+					x	:100,
+					y	:SCREEN_HEIGHT*0.2,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.2},
+					width	:200,
+					height	:50, 
+					velocity:{x:2,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.6,y:0}
+				},
+		    		{	id	:5,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.4,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.4},
+					width	:150,
+					height	:40, 
+					velocity:{x:8,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.5,y:0}
+				},
+		    		{	id:6,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.5,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.5},
+					width	:50,
+					height	:30, 
+					velocity:{x:5,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.4,y:0}
+				},
+		    		{	id	:7,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.6,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.6},
+					width	:100,
+					height	:40, 
+					velocity:{x:3,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.5,y:0}
+				},
+		    		{	id	:8,
+					x	:100,
+					y	:SCREEN_HEIGHT*0.8,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.8},
+					width	:150,
+					height	:50, 
+					velocity:{x:4,y:0},
+					endLoc	:{x:SCREEN_WIDTH*0.5,y:0}
+				}];
+
+	  	if(level.y == -1)
+			return 	[{	id	:1,
+					x	:0,
+					y	:-500,
+					startLoc:{x:0,y:0},
+					width	:20,
+					height	:SCREEN_HEIGHT+500, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:2,
+					x	:SCREEN_WIDTH-20,
+					y	:0,
+					startLoc:{x:SCREEN_WIDTH-60,y:0},
+					width	:20,
+					height	:SCREEN_HEIGHT*0.8, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:3,
+					x	:0,
+					y	:SCREEN_HEIGHT-20,
+					startLoc:{x:0,y:SCREEN_HEIGHT-20},
+					width	:SCREEN_WIDTH,
+					height	:20, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				},
+		    		{	id	:4,
+					x	:200,
+					y	:SCREEN_HEIGHT*0.2,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.2},
+					width	:60,
+					height	:30, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:800,y:0}
+				},
+		    		{	id	:5,
+					x	:500,
+					y	:SCREEN_HEIGHT*0.4,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.4},
+					width	:150,
+					height	:50, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:450,y:0}
+				},
+		    		{	id	:6,
+					x	:600,
+					y	:SCREEN_HEIGHT*0.6,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.6},
+					width	:1000,
+					height	:60, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:500,y:0}
+				},
+		    		{	id	:7,
+					x	:200,
+					y	:SCREEN_HEIGHT*0.8,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.8},
+					width	:150,
+					height	:30, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:600,y:0}
+				},
+			    	{	id	:8,
+					x	:SCREEN_WIDTH*0.1,
+					y	:SCREEN_HEIGHT*0.1,
+					startLoc:{x:100,y:SCREEN_HEIGHT*0.1},
+					width	:SCREEN_WIDTH*0.2,
+					height	:SCREEN_HEIGHT*0.05, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:600,y:0}
+				},
+		    		{	id	:9,
+					x	:0,
+					y	:0,
+					startLoc:{x:0,y:SCREEN_HEIGHT-20},
+					width	:SCREEN_WIDTH*.08,height:20, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				}];
+	  	if(level.y == 1)
+		    	return 	[{	id	:1,
+					x	:0,
+					y	:SCREEN_HEIGHT-500,
+					startLoc:{x:0,y:0},
+					width	:20,
+					height	:SCREEN_HEIGHT+500, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				}];
+
+	  	else 	return 	[{	id	:1,
+					x	:0,
+					y	:0,
+					startLoc:{x:0,y:0},
+					width	:0,
+					height	:0, 
+					velocity:{x:0,y:0},
+					endLoc	:{x:0,y:0}
+				}];
+	}
+
+else if(level.x == 1)
+{
+  	if(level.y == 0)
+	    	return 	[{	id	:1,
+				x	:0,
+				y	:100,
+				startLoc:{x:0,y:0},
+				width	:20,
+				height	:SCREEN_HEIGHT, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			},
+	    		{	id	:2,
+				x	:0,
+				y	:SCREEN_HEIGHT-20,
+				startLoc:{x:0,y:0},
+				width	:SCREEN_WIDTH+20,
+				height	:20, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}];
+
+  	else if(level.y == -1)
+	    	return 	[{	id	:1,
+				x	:0,
+				y	:0,
+				startLoc:{x:0,y:0},
+				width	:SCREEN_WIDTH,
+				height	:SCREEN_HEIGHT*0.8, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			},
+	    		{	id	:2,
+				x	:0,
+				y	:SCREEN_HEIGHT-20,
+				startLoc:{x:0,y:0},
+				width	:SCREEN_WIDTH,
+				height	:20, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}];
+  	else return 	[{	id	:1,
+				x	:0,
+				y	:0,
+				startLoc:{x:0,y:0},
+				width	:0,
+				height	:0, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}];
+}
+else if(level.x == 2)
+{
+  	if(level.y == 0)
+	    	return 	[{	id	:1,
+				x	:SCREEN_WIDTH-20,
+				y	:SCREEN_WIDTH*0.4,
+				startLoc:{x:0,y:0},
+				width	:20,
+				height	:SCREEN_HEIGHT, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			},
+	    		{	id	:2,
+				x	:0,
+				y	:SCREEN_HEIGHT-20,
+				startLoc:{x:0,y:0},
+				width	:SCREEN_WIDTH*0.4,
+				height	:20, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}];
+
+  	else if(level.y == -1)
+	    	return 	[{	id	:1,
+				x	:0,
+				y	:0,
+				startLoc:{x:0,y:0},
+				width	:20,
+				height	:SCREEN_HEIGHT*0.8, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			},
+	    		{	id	:1,
+				x	:SCREEN_WIDTH-20,
+				y	:0,
+				startLoc:{x:0,y:0},
+				width	:20,
+				height	:SCREEN_HEIGHT, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			},
+	    		{	id	:1,
+				x	:0,
+				y	:SCREEN_HEIGHT-20,
+				startLoc:{x:0,y:0},
+				width	:SCREEN_WIDTH,
+				height	:20, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}]
+  	else return 	[{	id	:1,
+				x	:0,
+				y	:0,
+				startLoc:{x:0,y:0},
+				width	:0,
+				height	:0, 
+				velocity:{x:0,y:0},
+				endLoc	:{x:0,y:0}
+			}];
+}
+
+else 	return 	[{	id	:1,
+			x	:0,
+			y	:0,
+			startLoc:{x:0,y:0},
+			width	:0,
+			height	:0, 
+			velocity:{x:0,y:0},
+			endLoc	:{x:0,y:0}
+		}];
+}
+    
+
+
+
+    </script>
+  </div>
+  </body>
+</html>
